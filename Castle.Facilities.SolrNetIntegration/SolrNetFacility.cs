@@ -77,8 +77,12 @@ namespace Castle.Facilities.SolrNetIntegration {
             var mapper = Mapper ?? new MemoizingMappingManager(new AttributesMappingManager());
             Kernel.Register(Component.For<IReadOnlyMappingManager>().Instance(mapper));
             //Kernel.Register(Component.For<ISolrCache>().ImplementedBy<HttpRuntimeCache>());
-            Kernel.Register(Component.For<ISolrConnection>().ImplementedBy<SolrConnection>()
-                                .Parameters(Parameter.ForKey("serverURL").Eq(GetSolrUrl())));
+            var solrConnection = new SolrConnection(this.GetSolrUrl());
+            Kernel.Register(Component.For<ISolrConnection>().ImplementedBy<PostSolrConnection>()
+                .DependsOn(
+                    Property.ForKey("serverURL").Eq(solrConnection), 
+                    Property.ForKey("serverURL").Eq(GetSolrUrl()))
+                    );
 
             Kernel.Register(Component.For(typeof (ISolrDocumentActivator<>)).ImplementedBy(typeof(SolrDocumentActivator<>)));
 
@@ -143,9 +147,16 @@ namespace Castle.Facilities.SolrNetIntegration {
         /// <param name="core"></param>
         private void RegisterCore(SolrCore core) {
             var coreConnectionId = core.Id + typeof (SolrConnection);
-            Kernel.Register(Component.For<ISolrConnection>().ImplementedBy<SolrConnection>()
-                                .Named(coreConnectionId)
-                                .Parameters(Parameter.ForKey("serverURL").Eq(core.Url)));
+            var solrConnection = new SolrConnection(core.Url);
+
+            Kernel.Register(
+                Component.For<ISolrConnection>()
+                    .ImplementedBy<PostSolrConnection>()
+                    .Named(coreConnectionId)
+                    .DependsOn(
+                        Property.ForKey("conn").Eq(solrConnection),
+                        Property.ForKey("serverURL").Eq(core.Url)));
+                    
 
             var ISolrQueryExecuter = typeof (ISolrQueryExecuter<>).MakeGenericType(core.DocumentType);
             var SolrQueryExecuter = typeof (SolrQueryExecuter<>).MakeGenericType(core.DocumentType);
